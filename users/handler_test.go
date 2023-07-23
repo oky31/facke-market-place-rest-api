@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"database/sql"
 	"encoding/json"
-	"fmt"
 	"log"
 	"net/http"
 	"net/http/httptest"
@@ -72,6 +71,5 @@ func TestCreateUser(t *testing.T) {
 	createUserHandler := CreateUserHandler{db: db}
 	createUserHandler.ServeHTTP(res, req)
 
-	fmt.Println(res.Body)
 	assertHttpStatus(t, http.StatusCreated, res.Code)
 }
