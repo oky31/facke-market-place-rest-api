@@ -7,11 +7,14 @@ import (
 	"log"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
+
+	"golang.org/x/exp/slog"
 )
 
 func DbConnection() *sql.DB {
-	db, err := sql.Open("sqlite3", "file:test.db?cache=shared&mode=memory")
+	db, err := sql.Open("sqlite3", ":memory:")
 	if err != nil {
 		panic(err)
 	}
@@ -44,12 +47,12 @@ func createTableUsers(db *sql.DB) {
 	}
 }
 
-func TestCreateUser(t *testing.T) {
+func dropTable(db *sql.DB) {
+	db.Exec("DROP TABLE users")
+}
 
-	db := DbConnection()
-	createTableUsers(db)
-
-	payload := CreateUserPayload{
+func payloadSuccessCreateUser() CreateUserPayload {
+	return CreateUserPayload{
 		FirstName: "Oky",
 		LastName:  "Saputra",
 		Email:     "oky@gmail.com",
@@ -58,18 +61,38 @@ func TestCreateUser(t *testing.T) {
 		Password:  "12345",
 	}
 
+}
+
+func TestCreateUser(t *testing.T) {
+	db := DbConnection()
+	createTableUsers(db)
+
+	payload := payloadSuccessCreateUser()
+
 	bytesPayload, err := json.Marshal(payload)
 	if err != nil {
 		t.Errorf("Error in marshal json %v", err)
 	}
 
-	req := httptest.NewRequest(http.MethodPost, "/v1/user/create", bytes.NewReader(bytesPayload))
-	req.Header.Set("Content-Type", "application/json")
+	req := httptest.NewRequest(http.MethodPost, "/v1/users/create", bytes.NewReader(bytesPayload))
+	req.Header.Set("Content-Type", ContentTypeJson)
 
 	res := httptest.NewRecorder()
 
-	createUserHandler := CreateUserHandler{db: db}
+	logJsonHandler := slog.NewJSONHandler(os.Stdout, nil)
+	logger := slog.New(logJsonHandler)
+	createUserHandler := CreateUserHandler{db: db, logger: logger}
 	createUserHandler.ServeHTTP(res, req)
 
 	assertHttpStatus(t, http.StatusCreated, res.Code)
+	assertContentTypeJson(t, res.Header().Get("Content-Type"))
+
+	dropTable(db)
+}
+
+func assertContentTypeJson(t testing.TB, contentTypeActual string) {
+	t.Helper()
+	if contentTypeActual != ContentTypeJson {
+		t.Errorf("expected content type %v actual %v", ContentTypeJson, contentTypeActual)
+	}
 }

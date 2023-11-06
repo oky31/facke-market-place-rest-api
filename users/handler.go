@@ -11,21 +11,41 @@ import (
 	"strings"
 
 	_ "github.com/mattn/go-sqlite3"
+	"golang.org/x/exp/slog"
 
 	"github.com/golang/gddo/httputil/header"
 )
 
 const size1MB = 1048576
 
+const ContentTypeJson = "application/json"
+
+type ResBody struct {
+	ErrorRes interface{} `json:"errors,omitempty"`
+	Message  string      `json:"message"`
+	Data     interface{} `json:"data,omitempty"`
+}
+
+func NewCreateUserHandler(logger *slog.Logger, db *sql.DB) http.Handler {
+	return &CreateUserHandler{
+		db:     db,
+		logger: logger,
+	}
+}
+
 type CreateUserHandler struct {
-	db *sql.DB
+	db     *sql.DB
+	logger *slog.Logger
 }
 
 func (cuh *CreateUserHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
+	cuh.logger.Info("request", "method", r.Method, "path", r.URL.Path)
+
 	if r.Header.Get("Content-Type") == "" {
 		message := "Content-Type header required"
 		http.Error(w, message, http.StatusUnsupportedMediaType)
+		cuh.logger.Error(message)
 		return
 	}
 
@@ -34,6 +54,7 @@ func (cuh *CreateUserHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 		if value != "application/json" {
 			message := "Content-Type header is not application/json"
 			http.Error(w, message, http.StatusUnsupportedMediaType)
+			cuh.logger.Error(message)
 			return
 		}
 	}
@@ -93,5 +114,6 @@ func (cuh *CreateUserHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 }
